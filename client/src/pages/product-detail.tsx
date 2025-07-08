@@ -7,26 +7,27 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useCart } from "@/hooks/use-cart";
 import { useToast } from "@/hooks/use-toast";
-import type { ProductWithDetails } from "@shared/schema";
+import { productsApi } from "@/lib/api";
 
 export default function ProductDetail() {
   const params = useParams();
-  const productId = parseInt(params.id as string);
+  const productId = params.id as string;
   const { addItem } = useCart();
   const { toast } = useToast();
 
-  const { data: product, isLoading, error } = useQuery<ProductWithDetails>({
-    queryKey: [`/api/products/${productId}`],
-    enabled: !isNaN(productId),
+  const { data: product, isLoading, error } = useQuery({
+    queryKey: ["product", productId],
+    queryFn: () => productsApi.getProduct(productId),
+    enabled: !!productId,
   });
 
   const handleAddToCart = () => {
     if (!product) return;
     
     addItem({
-      id: product.id,
+      id: product._id,
       name: product.name,
-      price: parseFloat(product.price),
+      price: product.price,
       image: product.image,
       maxQuantity: product.stockQuantity,
     });

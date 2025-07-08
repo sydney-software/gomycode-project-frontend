@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import ProductCard from "@/components/product/product-card";
 import ProductFilters from "@/components/product/product-filters";
-import type { ProductWithDetails } from "@shared/schema";
+import { productsApi } from "@/lib/api";
 
 export default function Products() {
   const [location] = useLocation();
@@ -39,26 +39,20 @@ export default function Products() {
   queryParams.append('limit', productsPerPage.toString());
   queryParams.append('offset', ((currentPage - 1) * productsPerPage).toString());
 
-  const { data: products = [], isLoading, error } = useQuery<ProductWithDetails[]>({
-    queryKey: ["/api/products", queryParams.toString()],
-    queryFn: () => fetch(`/api/products?${queryParams}`).then(res => res.json()),
+  const { data: products = [], isLoading, error } = useQuery({
+    queryKey: ["products", filters, sortBy, currentPage],
+    queryFn: () => {
+      const queryFilters = {
+        ...filters,
+        sortBy,
+        limit: productsPerPage,
+        offset: (currentPage - 1) * productsPerPage,
+      };
+      return productsApi.getProducts(queryFilters);
+    },
   });
 
-  // Sort products based on selected option
-  const sortedProducts = [...products].sort((a, b) => {
-    switch (sortBy) {
-      case 'price-low':
-        return parseFloat(a.price) - parseFloat(b.price);
-      case 'price-high':
-        return parseFloat(b.price) - parseFloat(a.price);
-      case 'newest':
-        return b.id - a.id;
-      case 'rating':
-        return parseFloat(b.rating || '0') - parseFloat(a.rating || '0');
-      default:
-        return b.featured ? 1 : -1; // Featured first
-    }
-  });
+  // Products are already sorted by the API
 
   const handleFiltersChange = (newFilters: any) => {
     setFilters(newFilters);
@@ -123,21 +117,21 @@ export default function Products() {
                   </div>
                 ))}
               </div>
-            ) : sortedProducts.length === 0 ? (
+            ) : products.length === 0 ? (
               <div className="text-center py-12">
                 <p className="text-slate-600 mb-4">No products found matching your criteria.</p>
                 <Button onClick={() => setFilters({})}>Clear Filters</Button>
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {sortedProducts.map((product) => (
-                  <ProductCard key={product.id} product={product} variant="compact" />
+                {products.map((product) => (
+                  <ProductCard key={product._id} product={product} variant="compact" />
                 ))}
               </div>
             )}
 
             {/* Pagination */}
-            {!isLoading && sortedProducts.length > 0 && (
+            {!isLoading && products.length > 0 && (
               <div className="flex items-center justify-center mt-12">
                 <nav className="flex items-center space-x-2">
                   <Button

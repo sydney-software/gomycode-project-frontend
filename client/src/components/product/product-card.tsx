@@ -5,10 +5,8 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { useCart } from "@/hooks/use-cart";
 import { useToast } from "@/hooks/use-toast";
-import type { ProductWithDetails } from "@shared/schema";
-
 interface ProductCardProps {
-  product: ProductWithDetails;
+  product: any; // Updated to use any for now, can be typed properly later
   variant?: "default" | "compact";
 }
 
@@ -21,9 +19,9 @@ export default function ProductCard({ product, variant = "default" }: ProductCar
     e.stopPropagation();
     
     addItem({
-      id: product.id,
+      id: product._id,
       name: product.name,
-      price: parseFloat(product.price),
+      price: product.price,
       image: product.image,
       maxQuantity: product.stockQuantity,
     });
@@ -56,7 +54,7 @@ export default function ProductCard({ product, variant = "default" }: ProductCar
   if (variant === "compact") {
     return (
       <Card className="group hover:shadow-xl transition-shadow overflow-hidden border border-slate-200">
-        <Link href={`/products/${product.id}`}>
+        <Link href={`/products/${product._id}`}>
           <a className="block">
             <div className="aspect-square overflow-hidden bg-slate-100">
               <img
@@ -109,7 +107,7 @@ export default function ProductCard({ product, variant = "default" }: ProductCar
 
   return (
     <Card className="group hover:shadow-xl transition-shadow overflow-hidden">
-      <Link href={`/products/${product.id}`}>
+      <Link href={`/products/${product._id}`}>
         <a className="block">
           <div className="aspect-square overflow-hidden bg-slate-100">
             <img

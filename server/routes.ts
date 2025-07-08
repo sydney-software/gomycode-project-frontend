@@ -1,8 +1,15 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertOrderSchema, insertOrderItemSchema } from "@shared/schema";
 import { z } from "zod";
+import mongoose from "mongoose";
+import authRoutes from "./routes/auth";
+import paymentRoutes from "./routes/payments";
+import adminRoutes from "./routes/admin";
+import reviewRoutes from "./routes/reviews";
+import wishlistRoutes from "./routes/wishlist";
+import searchRoutes from "./routes/search";
+import { optionalAuth, authenticate } from "./middleware/auth";
 
 const createOrderRequestSchema = z.object({
   email: z.string().email(),
@@ -14,12 +21,30 @@ const createOrderRequestSchema = z.object({
   postalCode: z.string().min(1),
   paymentMethod: z.enum(['cod', 'mpesa', 'card']),
   items: z.array(z.object({
-    productId: z.number(),
+    productId: z.string(),
     quantity: z.number().min(1),
   })).min(1),
 });
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Authentication routes
+  app.use("/api/auth", authRoutes);
+
+  // Payment routes
+  app.use("/api/payments", paymentRoutes);
+
+  // Admin routes
+  app.use("/api/admin", adminRoutes);
+
+  // Review routes
+  app.use("/api/reviews", reviewRoutes);
+
+  // Wishlist routes
+  app.use("/api/wishlist", wishlistRoutes);
+
+  // Search routes
+  app.use("/api/search", searchRoutes);
+
   // Get all categories
   app.get("/api/categories", async (req, res) => {
     try {
@@ -61,15 +86,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (category) {
         const categoryRecord = await storage.getCategoryBySlug(category as string);
         if (categoryRecord) {
-          filters.categoryId = categoryRecord.id;
+          filters.categoryId = (categoryRecord as any)._id.toString();
         }
       }
-      
+
       if (brand) {
         const brands = await storage.getBrands();
         const brandRecord = brands.find(b => b.slug === brand);
         if (brandRecord) {
-          filters.brandId = brandRecord.id;
+          filters.brandId = (brandRecord as any)._id.toString();
         }
       }
       
@@ -104,10 +129,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get single product by ID
   app.get("/api/products/:id", async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
-      if (isNaN(id)) {
-        return res.status(400).json({ message: "Invalid product ID" });
-      }
+      const { id } = req.params;
 
       const product = await storage.getProduct(id);
       if (!product) {
@@ -139,7 +161,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Create order
-  app.post("/api/orders", async (req, res) => {
+  app.post("/api/orders", optionalAuth, async (req, res) => {
     try {
       const validatedData = createOrderRequestSchema.parse(req.body);
       
@@ -157,13 +179,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(400).json({ message: `Insufficient stock for ${product.name}` });
         }
 
-        const itemTotal = parseFloat(product.price) * item.quantity;
+        const itemTotal = product.price * item.quantity;
         subtotal += itemTotal;
-        
+
         orderItems.push({
-          productId: item.productId,
+          product: item.productId,
           quantity: item.quantity,
           price: product.price,
+          total: itemTotal,
         });
       }
 
@@ -172,7 +195,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const order = await storage.createOrder(
         {
-          userId: null, // Guest checkout
+          user: req.user?.userId ? new mongoose.Types.ObjectId(req.user.userId) : undefined, // Use authenticated user if available
           email: validatedData.email,
           firstName: validatedData.firstName,
           lastName: validatedData.lastName,
@@ -183,10 +206,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           paymentMethod: validatedData.paymentMethod,
           paymentStatus: validatedData.paymentMethod === 'cod' ? 'pending' : 'pending',
           orderStatus: 'processing',
-          total: total.toFixed(2),
-          subtotal: subtotal.toFixed(2),
-          tax: tax.toFixed(2),
-          createdAt: new Date().toISOString(),
+          total: total,
+          subtotal: subtotal,
+          tax: tax,
+          shippingCost: 0,
         },
         orderItems
       );
@@ -207,10 +230,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get order by ID
   app.get("/api/orders/:id", async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
-      if (isNaN(id)) {
-        return res.status(400).json({ message: "Invalid order ID" });
-      }
+      const { id } = req.params;
 
       const order = await storage.getOrder(id);
       if (!order) {
@@ -221,6 +241,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching order:", error);
       res.status(500).json({ message: "Failed to fetch order" });
+    }
+  });
+
+  // Get user orders (authenticated users only)
+  app.get("/api/orders/user/me", authenticate, async (req, res) => {
+    try {
+      const orders = await storage.getUserOrders(req.user!.userId);
+      res.json(orders);
+    } catch (error) {
+      console.error("Error fetching user orders:", error);
+      res.status(500).json({ message: "Failed to fetch orders" });
     }
   });
 

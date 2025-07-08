@@ -4,11 +4,12 @@ import { Smartphone, Laptop, Zap, ShieldCheck, Truck, Star } from "lucide-react"
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import ProductCard from "@/components/product/product-card";
-import type { ProductWithDetails } from "@shared/schema";
+import { productsApi } from "@/lib/api";
 
 export default function Home() {
-  const { data: featuredProducts = [], isLoading } = useQuery<ProductWithDetails[]>({
-    queryKey: ["/api/products/featured"],
+  const { data: featuredProducts = [], isLoading } = useQuery({
+    queryKey: ["featured-products"],
+    queryFn: () => productsApi.getProducts({ featured: true, limit: 6 }),
   });
 
   return (
@@ -118,7 +119,7 @@ export default function Home() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
               {featuredProducts.map((product) => (
-                <ProductCard key={product.id} product={product} />
+                <ProductCard key={product._id} product={product} />
               ))}
             </div>
           )}
