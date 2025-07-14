@@ -287,5 +287,6 @@ If you encounter any issues or have questions:
 
 ---
 
-**Built with ❤️ by [Your Name]**
+**Built by sydney walter
+
 
